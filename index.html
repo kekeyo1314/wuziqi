@@ -131,19 +131,19 @@
     // ---------- 棋盘逻辑 ----------
     const boardSize = 15;
     let board = Array(boardSize).fill().map(() => Array(boardSize).fill(null));
-    let currentPlayer = 'black';   // 黑棋先下
+    let currentPlayer = 'black';
     let gameOver = false;
     let winner = null;
-    let historyStack = [];   // 本地悔棋栈（只存己方下的步？但为了简单，允许悔棋最近一步，不论谁下的。联机时需同步）
+    let historyStack = [];
 
-    // 网络相关
     let peer = null;
-    let conn = null;          // 数据连接
+    let conn = null;
     let myId = null;
-    let isMyTurn = true;      // 轮到本地玩家？(黑棋先行，创建房主执黑？我们约定：房主为黑棋，加入方为白棋)
-    let gameStarted = false;   // 是否已连接并确定颜色
+    let isMyTurn = true;
+    let gameStarted = false;
+    let myColor = null;
+    let opponentColor = null;
 
-    // DOM 元素
     const canvas = document.getElementById('gobangCanvas');
     const ctx = canvas.getContext('2d');
     let cellSize = 0, offsetX = 0, offsetY = 0, radius = 0;
@@ -157,7 +157,6 @@
     const createBtn = document.getElementById('createBtn');
     const resetLocalBtn = document.getElementById('resetLocalBtn');
 
-    // ---------- 绘图函数 ----------
     function drawBoard() {
         if (!ctx) return;
         const w = canvas.width, h = canvas.height;
@@ -227,7 +226,6 @@
         return true;
     }
 
-    // 更新界面显示：轮到谁，胜利信息
     function updateUI() {
         if(gameOver){
             if(winner === 'black') turnText.innerText = '🏆 黑方胜！';
@@ -250,13 +248,12 @@
         }
     }
 
-    // 本地落子（不发送网络消息前检查）
     function tryPlace(row, col, player) {
         if(gameOver) return false;
         if(board[row][col] !== null) return false;
         if(player !== currentPlayer) return false;
-        // 胜负判定
         board[row][col] = player;
+        historyStack.push({row, col, player});
         const win = checkWin(row, col, player);
         if(win){
             gameOver = true;
@@ -272,27 +269,21 @@
             updateUI();
             return true;
         }
-        // 切换回合
         currentPlayer = (currentPlayer === 'black') ? 'white' : 'black';
         drawBoard();
         updateUI();
         return true;
     }
 
-    // 执行落子并同步给对手
     function placeAndSync(row, col) {
         if(!gameStarted || gameOver) return false;
         if(!isMyTurn) { infoMsgDiv.innerText = '请等待对方落子'; setTimeout(()=>infoMsgDiv.innerText='',1000); return false; }
         if(board[row][col] !== null) return false;
-        if(currentPlayer !== (isMyTurn ? (myColor) : opponentColor)) return false;  // myColor 是本地执子颜色
-        
-        // 尝试落子
+        if(currentPlayer !== myColor) return false;
         if(tryPlace(row, col, myColor)){
-            // 发送消息给对手
             if(conn && conn.open){
                 conn.send({ type: 'move', row, col, player: myColor });
             }
-            // 切换本地回合标志
             isMyTurn = false;
             updateUI();
             return true;
@@ -300,12 +291,9 @@
         return false;
     }
 
-    // 接收对手的落子
     function onOpponentMove(row, col, player) {
         if(gameOver) return;
-        if(isMyTurn) { /* 理论上不应该，但做保护 */ }
         if(board[row][col] !== null) return;
-        // 验证玩家颜色就是对方颜色
         if(player !== opponentColor) return;
         if(tryPlace(row, col, player)){
             isMyTurn = true;
@@ -313,29 +301,12 @@
         }
     }
 
-    // 悔棋请求简单处理：只允许悔棋最后一步（双方协商简化：直接悔一步，发送悔棋指令）
-    function undoLastMove() {
-        if(!gameStarted || gameOver) return false;
-        if(historyStack.length === 0) return false;
-        // 只允许悔棋当前回合方的上一步？更简单：撤销最后一步，并切换回合
-        const last = historyStack.pop();
-        board[last.row][last.col] = null;
-        currentPlayer = last.player;
-        // 同步悔棋给对手
-        if(conn && conn.open) conn.send({ type: 'undo', row: last.row, col: last.col, player: last.player });
-        drawBoard();
-        updateUI();
-        return true;
-    }
-
-    // 重置游戏（本端棋盘重置，并通知对方）
     function resetGame(){
         board = Array(boardSize).fill().map(()=>Array(boardSize).fill(null));
         currentPlayer = 'black';
         gameOver = false;
         winner = null;
         historyStack = [];
-        // 根据颜色决定谁先手：黑棋先手，故若是本地执黑则 isMyTurn=true，否则 false
         if(gameStarted){
             isMyTurn = (myColor === 'black');
             currentPlayer = 'black';
@@ -345,13 +316,12 @@
         if(conn && conn.open) conn.send({ type: 'reset' });
     }
 
-    // 接收网络消息
     function setupConnection(connection, myAssignedColor, isCreator){
         conn = connection;
         gameStarted = true;
         myColor = myAssignedColor;
         opponentColor = (myColor === 'black') ? 'white' : 'black';
-        isMyTurn = (myColor === 'black');   // 黑棋先走
+        isMyTurn = (myColor === 'black');
         currentPlayer = 'black';
         gameOver = false;
         winner = null;
@@ -364,13 +334,6 @@
         conn.on('data', (data)=>{
             if(data.type === 'move'){
                 onOpponentMove(data.row, data.col, data.player);
-            }else if(data.type === 'undo'){
-                // 对方请求悔棋，我们直接同意（为简化，直接执行悔棋）
-                board[data.row][data.col] = null;
-                currentPlayer = data.player;
-                drawBoard();
-                updateUI();
-                isMyTurn = !isMyTurn;  // 回合转回来
             }else if(data.type === 'reset'){
                 resetGame();
             }
@@ -382,7 +345,6 @@
         });
     }
 
-    // 创建房间
     createBtn.onclick = ()=>{
         if(peer) peer.destroy();
         peer = new Peer();
@@ -398,7 +360,6 @@
         peer.on('error', err => { console.error(err); infoMsgDiv.innerText='创建失败，请刷新重试'; });
     };
 
-    // 加入房间
     connectBtn.onclick = ()=>{
         const targetId = peerIdInput.value.trim();
         if(!targetId) { infoMsgDiv.innerText='请输入对方ID'; return; }
@@ -422,7 +383,6 @@
         }
     };
 
-    // canvas 落子事件
     function handleCanvasClick(e) {
         if(!gameStarted || gameOver || !isMyTurn) return;
         let clientX, clientY;
@@ -457,11 +417,9 @@
     canvas.addEventListener('touchstart', handleCanvasClick, { passive: false });
     canvas.addEventListener('contextmenu', e=>e.preventDefault());
 
-    // 初始化绘图
     canvas.width = 600; canvas.height = 600;
     drawBoard();
     updateUI();
-    let myColor = null, opponentColor = null;
 </script>
 </body>
 </html>
