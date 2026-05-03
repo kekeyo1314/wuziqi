@@ -232,7 +232,16 @@
         });
 
         // --- 网络与联机部分 (PeerJS) ---
-        const peer = new Peer();
+       // 替换为国内大厂的 STUN 服务器，解决国内无法连接的问题
+const peer = new Peer({
+    config: {
+        'iceServers': [
+            { urls: 'stun:stun.qq.com:3478' },       // 腾讯公共服务器
+            { urls: 'stun:stun.miwifi.com:3478' },   // 小米公共服务器
+            { urls: 'stun:stun.l.google.com:19302' } // 谷歌备用（防止国外同学玩不了）
+        ]
+    }
+});
         let conn;
 
         function updateStatus(text) {
