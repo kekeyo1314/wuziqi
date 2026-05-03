@@ -96,10 +96,29 @@
             font-size: 0.9rem;
             font-weight: bold;
             color: #3e2a1a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f5e5ce;
+            padding: 4px 12px;
+            border-radius: 40px;
         }
+        .copy-btn {
+            background: #d9b48b;
+            border: none;
+            border-radius: 30px;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            font-weight: bold;
+            color: #3e2a1a;
+            transition: 0.1s;
+        }
+        .copy-btn:active { transform: scale(0.92); }
         @media (max-width: 550px) {
             .conn-area { width: 100%; justify-content: center; }
             input { width: 120px; }
+            .status { font-size: 0.75rem; }
         }
     </style>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
@@ -117,12 +136,15 @@
         <button class="reset-btn" id="resetLocalBtn">🔄 重开</button>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 10px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 10px; flex-wrap: wrap;">
         <div class="turn-indicator">
             <div class="piece black" id="turnPiece"></div>
             <span id="turnText">等待连接...</span>
         </div>
-        <div class="status" id="connStatus">⚫ 未连接</div>
+        <div class="status" id="connStatus">
+            <span id="statusText">⚫ 未连接</span>
+            <button id="copyIdBtn" class="copy-btn" style="display: none;">📋 复制ID</button>
+        </div>
     </div>
     <div id="infoMsg" style="text-align: center; margin-top: 12px; font-size: 0.8rem; color: #794f1f;"></div>
 </div>
@@ -150,13 +172,34 @@
 
     const turnPiece = document.getElementById('turnPiece');
     const turnText = document.getElementById('turnText');
-    const connStatusSpan = document.getElementById('connStatus');
+    const statusTextSpan = document.getElementById('statusText');
+    const copyIdBtn = document.getElementById('copyIdBtn');
     const infoMsgDiv = document.getElementById('infoMsg');
     const peerIdInput = document.getElementById('peerIdInput');
     const connectBtn = document.getElementById('connectBtn');
     const createBtn = document.getElementById('createBtn');
     const resetLocalBtn = document.getElementById('resetLocalBtn');
 
+    // 复制房间ID
+    function copyRoomId() {
+        if (!myId) return;
+        navigator.clipboard.writeText(myId).then(() => {
+            infoMsgDiv.innerText = '✅ 房间ID已复制！';
+            setTimeout(() => { if(infoMsgDiv.innerText === '✅ 房间ID已复制！') infoMsgDiv.innerText = ''; }, 1500);
+        }).catch(() => {
+            // 降级方案
+            const textarea = document.createElement('textarea');
+            textarea.value = myId;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            infoMsgDiv.innerText = '✅ 房间ID已复制（手动）';
+            setTimeout(() => infoMsgDiv.innerText = '', 1500);
+        });
+    }
+
+    // 绘制棋盘 (保持原版)
     function drawBoard() {
         if (!ctx) return;
         const w = canvas.width, h = canvas.height;
@@ -328,7 +371,8 @@
         board = Array(boardSize).fill().map(()=>Array(boardSize).fill(null));
         drawBoard();
         updateUI();
-        connStatusSpan.innerText = `✅ 已连接 | 你执 ${myColor==='black'?'黑●':'白○'}`;
+        statusTextSpan.innerText = `✅ 已连接 | 你执 ${myColor==='black'?'黑●':'白○'}`;
+        copyIdBtn.style.display = 'none';
         infoMsgDiv.innerText = isMyTurn ? '轮到你了' : '等待对方开局';
 
         conn.on('data', (data)=>{
@@ -339,9 +383,10 @@
             }
         });
         conn.on('close', ()=>{
-            connStatusSpan.innerText = '⚠️ 连接断开';
+            statusTextSpan.innerText = '⚠️ 连接断开';
             gameStarted = false;
             infoMsgDiv.innerText = '对方已离开，刷新页面重连';
+            copyIdBtn.style.display = 'none';
         });
     }
 
@@ -350,14 +395,15 @@
         peer = new Peer();
         peer.on('open', id => {
             myId = id;
-            connStatusSpan.innerText = `🏠 房间ID: ${id}`;
+            statusTextSpan.innerText = `🏠 房间ID: ${id}`;
+            copyIdBtn.style.display = 'inline-block';
             infoMsgDiv.innerText = '等待对方连接...';
             peer.on('connection', incomingConn => {
                 if(conn) return;
                 setupConnection(incomingConn, 'black', true);
             });
         });
-        peer.on('error', err => { console.error(err); infoMsgDiv.innerText='创建失败，请刷新重试'; });
+        peer.on('error', err => { console.error(err); infoMsgDiv.innerText='创建失败，请刷新重试'; copyIdBtn.style.display = 'none'; });
     };
 
     connectBtn.onclick = ()=>{
@@ -382,6 +428,9 @@
             resetGame();
         }
     };
+
+    // 复制按钮事件
+    copyIdBtn.onclick = copyRoomId;
 
     function handleCanvasClick(e) {
         if(!gameStarted || gameOver || !isMyTurn) return;
