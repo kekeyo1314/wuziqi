@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联机五子棋</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 10px; color: #333; }
+        .panel {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+        }
+        .status { font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #d93025; }
+        .share-box {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #1557b0; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-undo { background-color: #fbbc04; color: #333; margin-top: 10px;}
+        .btn-undo:hover { background-color: #e3a800; }
+        
+        canvas {
+            background-color: #e4c180; /* 木板颜色 */
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>在线五子棋</h1>
+    
+    <div class="panel">
+        <div id="statusText" class="status">正在初始化网络...</div>
+        
+        <div id="shareContainer" style="display: none;">
+            <div>把下面的链接发给朋友，对方打开后即可开始对战：</div>
+            <div class="share-box">
+                <input type="text" id="shareUrl" readonly>
+                <button onclick="copyLink()">复制链接</button>
+            </div>
+        </div>
+
+        <button id="undoBtn" class="btn-undo" onclick="requestUndo()" disabled>悔棋 (撤销最后一步)</button>
+    </div>
+
+    <canvas id="board" width="480" height="480"></canvas>
+
+    <script>
+        // --- 游戏逻辑部分 ---
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const GRID_SIZE = 15;
+        const CELL_SIZE = 30;
+        const MARGIN = 30;
+        
+        let board = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0)); // 0:空, 1:黑, 2:白
+        let history = []; // 记录落子历史用于悔棋
+        let currentTurn = 1; // 1黑子先手
+        let myColor = 0; // 我的颜色
+        let gameOver = false;
+
+        // 画棋盘
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < GRID_SIZE; i++) {
+                // 横线
+                ctx.moveTo(MARGIN, MARGIN + i * CELL_SIZE);
+                ctx.lineTo(MARGIN + (GRID_SIZE - 1) * CELL_SIZE, MARGIN + i * CELL_SIZE);
+                // 竖线
+                ctx.moveTo(MARGIN + i * CELL_SIZE, MARGIN);
+                ctx.lineTo(MARGIN + i * CELL_SIZE, MARGIN + (GRID_SIZE - 1) * CELL_SIZE);
+            }
+            ctx.stroke();
+
+            // 画天元和星位 (可选，增加美观度)
+            const stars = [[3,3], [11,3], [3,11], [11,11], [7,7]];
+            ctx.fillStyle = '#333';
+            stars.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(MARGIN + x * CELL_SIZE, MARGIN + y * CELL_SIZE, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 重绘所有棋子
+            history.forEach(move => drawPiece(move.x, move.y, move.color));
+        }
+
+        // 画棋子
+        function drawPiece(x, y, color) {
+            ctx.beginPath();
+            ctx.arc(MARGIN + x * CELL_SIZE, MARGIN + y * CELL_SIZE, CELL_SIZE * 0.4, 0, Math.PI * 2);
+            
+            // 添加渐变让棋子更有立体感
+            const gradient = ctx.createRadialGradient(
+                MARGIN + x * CELL_SIZE - 3, MARGIN + y * CELL_SIZE - 3, 2,
+                MARGIN + x * CELL_SIZE, MARGIN + y * CELL_SIZE, CELL_SIZE * 0.4
+            );
+            
+            if (color === 1) {
+                gradient.addColorStop(0, '#666');
+                gradient.addColorStop(1, '#000');
+            } else {
+                gradient.addColorStop(0, '#fff');
+                gradient.addColorStop(1, '#ccc');
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // 标记最后一步
+            if (history.length > 0) {
+                const lastMove = history[history.length - 1];
+                if (lastMove.x === x && lastMove.y === y) {
+                    ctx.fillStyle = color === 1 ? 'white' : 'black';
+                    ctx.beginPath();
+                    ctx.arc(MARGIN + x * CELL_SIZE, MARGIN + y * CELL_SIZE, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 胜负判定 (四个方向)
+        function checkWin(x, y, color) {
+            const directions = [ [1, 0], [0, 1], [1, 1], [1, -1] ];
+            for (let [dx, dy] of directions) {
+                let count = 1;
+                // 正向查找
+                for (let i = 1; i < 5; i++) {
+                    let nx = x + dx * i, ny = y + dy * i;
+                    if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && board[nx][ny] === color) count++;
+                    else break;
+                }
+                // 反向查找
+                for (let i = 1; i < 5; i++) {
+                    let nx = x - dx * i, ny = y - dy * i;
+                    if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && board[nx][ny] === color) count++;
+                    else break;
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        // 尝试落子
+        function playMove(x, y, color, isLocal) {
+            if (board[x][y] !== 0 || gameOver || currentTurn !== color) return;
+
+            board[x][y] = color;
+            history.push({x, y, color});
+            drawBoard();
+
+            if (checkWin(x, y, color)) {
+                gameOver = true;
+                updateStatus(color === myColor ? "🎉 你赢了！" : "😔 你输了！");
+                document.getElementById('undoBtn').disabled = false;
+            } else {
+                currentTurn = 3 - currentTurn; // 1变2，2变1
+                updateStatus(currentTurn === myColor ? "👉 轮到你落子了" : "⏳ 等待对方落子...");
+                document.getElementById('undoBtn').disabled = false;
+            }
+
+            // 如果是本地落子，发送给对方
+            if (isLocal && conn) {
+                conn.send({ type: 'move', x: x, y: y, color: color });
+            }
+        }
+
+        // 执行悔棋（退回一步）
+        function executeUndo() {
+            if (history.length === 0) return;
+            const lastMove = history.pop();
+            board[lastMove.x][lastMove.y] = 0;
+            currentTurn = lastMove.color; // 轮次退回给最后落子的人
+            gameOver = false;
+            
+            drawBoard();
+            updateStatus(currentTurn === myColor ? "👉 轮到你落子了" : "⏳ 等待对方落子...");
+            if (history.length === 0) document.getElementById('undoBtn').disabled = true;
+        }
+
+        // 点击画布事件
+        canvas.addEventListener('click', (e) => {
+            if (myColor === 0 || gameOver || currentTurn !== myColor) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            // 计算点击属于哪个交叉点
+            const x = Math.round((e.clientX - rect.left - MARGIN) / CELL_SIZE);
+            const y = Math.round((e.clientY - rect.top - MARGIN) / CELL_SIZE);
+
+            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+                playMove(x, y, myColor, true);
+            }
+        });
+
+        // --- 网络与联机部分 (PeerJS) ---
+        const peer = new Peer();
+        let conn;
+
+        function updateStatus(text) {
+            document.getElementById('statusText').innerText = text;
+        }
+
+        // 发起悔棋请求
+        function requestUndo() {
+            executeUndo(); // 本地先撤销
+            if (conn) conn.send({ type: 'undo' }); // 告诉对方撤销
+        }
+
+        // 复制链接
+        function copyLink() {
+            const copyText = document.getElementById("shareUrl");
+            copyText.select();
+            document.execCommand("copy");
+            alert("链接已复制，快发给朋友吧！");
+        }
+
+        // 处理收到的网络数据
+        function handleData(data) {
+            if (data.type === 'move') {
+                playMove(data.x, data.y, data.color, false);
+            } else if (data.type === 'undo') {
+                executeUndo();
+            }
+        }
+
+        peer.on('open', (id) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinId = urlParams.get('join');
+
+            if (joinId) {
+                // 作为【客人】加入游戏（执白后手）
+                myColor = 2;
+                updateStatus("正在连接到主机...");
+                conn = peer.connect(joinId);
+                
+                conn.on('open', () => {
+                    updateStatus("连接成功！你是白棋，等待黑棋(对方)先手...");
+                    conn.on('data', handleData);
+                });
+                
+            } else {
+                // 作为【主机】创建游戏（执黑先手）
+                myColor = 1;
+                const shareUrl = window.location.href.split('?')[0] + '?join=' + id;
+                document.getElementById('shareUrl').value = shareUrl;
+                document.getElementById('shareContainer').style.display = 'block';
+                updateStatus("你是黑棋(先手)，等待朋友加入...");
+
+                peer.on('connection', (connection) => {
+                    conn = connection;
+                    document.getElementById('shareContainer').style.display = 'none';
+                    updateStatus("👉 朋友已连接！游戏开始，轮到你落子了");
+                    
+                    conn.on('data', handleData);
+                });
+            }
+        });
+
+        peer.on('error', (err) => {
+            console.error(err);
+            updateStatus("网络连接出现错误，请刷新页面重试。");
+        });
+
+        // 初始化空棋盘
+        drawBoard();
+    </script>
+</body>
+</html>
