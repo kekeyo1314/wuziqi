@@ -2,511 +2,578 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>五子棋在线对战 · 好友对决</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>五子棋 · 双人对弈</title>
     <style>
         * {
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
+
         body {
-            background: linear-gradient(145deg, #1a5a4a 0%, #0e3a2e 100%);
+            background: linear-gradient(145deg, #2a6f5c 0%, #1d4e41 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+            font-family: 'Segoe UI', 'Roboto', 'Noto Sans', system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
             margin: 0;
             padding: 20px;
         }
+
+        /* 主卡片容器 */
         .game-container {
-            background: #ddc7a2;
+            background: #e8d5b5;
+            background-image: radial-gradient(circle at 25% 40%, rgba(255,245,215,0.35) 2%, transparent 2.5%);
+            background-size: 28px 28px;
             border-radius: 48px;
-            padding: 20px;
-            box-shadow: 0 25px 35px rgba(0,0,0,0.4);
+            box-shadow: 0 25px 40px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255,255,240,0.6);
+            padding: 20px 20px 25px;
+            transition: all 0.2s;
         }
+
+        /* 棋盘区 */
+        .board-wrapper {
+            display: flex;
+            justify-content: center;
+            filter: drop-shadow(6px 8px 12px rgba(0, 0, 0, 0.3));
+        }
+
         canvas {
             display: block;
             margin: 0 auto;
             border-radius: 12px;
-            background-color: #f2e8cf;
+            background-color: #f7f0d9;
+            box-shadow: inset 0 0 0 1px rgba(100, 70, 30, 0.3), 0 10px 20px rgba(0,0,0,0.2);
             cursor: pointer;
-            box-shadow: 0 8px 18px rgba(0,0,0,0.3);
             width: 100%;
             height: auto;
         }
+
+        /* 控制面板 */
         .info-panel {
             margin-top: 20px;
-            background: #fff6e8;
-            border-radius: 50px;
-            padding: 12px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 14px;
+            background: #fdf8ed;
+            border-radius: 60px;
+            padding: 10px 20px;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255,255,245,0.8);
         }
-        .turn-box {
+
+        .turn-area {
             display: flex;
             align-items: center;
             gap: 15px;
-            background: #f2e3d0;
-            padding: 5px 20px;
-            border-radius: 40px;
+            background: #fff3e0;
+            padding: 5px 20px 5px 15px;
+            border-radius: 50px;
+            box-shadow: inset 0 1px 3px rgba(90, 50, 15, 0.1), 0 3px 6px rgba(0,0,0,0.05);
         }
-        .piece {
-            width: 40px;
-            height: 40px;
+
+        .piece-badge {
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
+            transition: all 0.15s ease;
         }
-        .piece.black {
-            background: radial-gradient(circle at 35% 35%, #444, #111);
-            box-shadow: inset -1px -1px 0 #2a2a2a, 0 2px 5px rgba(0,0,0,0.3);
+
+        .piece-badge.black {
+            background: radial-gradient(circle at 35% 35%, #3a3a4a, #1a1a2a);
+            box-shadow: inset -1px -1px 0 #5a5a6a, 0 2px 6px rgba(0,0,0,0.3);
         }
-        .piece.white {
-            background: radial-gradient(circle at 35% 35%, #fff, #ccc);
-            box-shadow: inset -1px -1px 0 #aaa, 0 2px 5px rgba(0,0,0,0.2);
+
+        .piece-badge.white {
+            background: radial-gradient(circle at 35% 35%, #f9f9fc, #d0d0e0);
+            box-shadow: inset -1px -1px 0 #aaa, 0 2px 6px rgba(0,0,0,0.2);
         }
-        .status {
+
+        .turn-text {
+            font-size: 1.3rem;
             font-weight: bold;
-            font-size: 1.2rem;
-            color: #2c3e2f;
+            letter-spacing: 1px;
+            color: #4a3728;
+            text-shadow: 0 1px 0 rgba(255,245,210,0.8);
         }
-        button {
-            background: #4a6a3b;
-            border: none;
-            color: white;
-            font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 30px;
-            cursor: pointer;
+
+        .winner-message {
             font-size: 1rem;
-            transition: 0.1s;
-        }
-        button:hover { background: #2e4a23; transform: scale(0.97);}
-        button:disabled { background: #9b8e7a; cursor: not-allowed; transform: none;}
-        .share-area {
-            margin-top: 12px;
-            background: #e7dbbd;
-            border-radius: 40px;
-            padding: 10px 16px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        input {
-            flex: 1;
-            padding: 8px;
-            border-radius: 60px;
-            border: 1px solid #b59e6e;
-            background: #fffcf0;
-            font-size: 0.8rem;
-        }
-        .error-toast {
-            background: #ab3e2c;
-            color: #fff1c1;
+            font-weight: bold;
+            background: #d9c48b;
             padding: 6px 14px;
-            border-radius: 28px;
-            font-size: 0.8rem;
-            text-align: center;
+            border-radius: 40px;
+            color: #2d2b1f;
+            display: inline-block;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1);
         }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            background: #f4e9cf;
+            border: none;
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 8px 18px;
+            border-radius: 40px;
+            color: #4a3b28;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,220,0.8);
+            transition: 0.08s linear;
+            font-family: inherit;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-reset {
+            background: #d9b48b;
+            color: #3e2a1a;
+        }
+
         @media (max-width: 550px) {
-            .turn-text { font-size: 1rem; }
-            .piece { width: 32px; height: 32px; }
+            .game-container {
+                padding: 12px 12px 18px;
+            }
+            .turn-text {
+                font-size: 1rem;
+            }
+            .piece-badge {
+                width: 32px;
+                height: 32px;
+            }
+            .btn {
+                padding: 6px 14px;
+                font-size: 0.85rem;
+            }
+            .turn-area {
+                gap: 8px;
+                padding: 4px 15px;
+            }
         }
     </style>
 </head>
 <body>
-
-<div>
-    <div class="game-container">
-        <canvas id="boardCanvas" width="510" height="510"></canvas>
-        
-        <div class="info-panel">
-            <div class="turn-box">
-                <div id="badgePiece" class="piece black"></div>
-                <div class="status" id="gameStatusText">正在连接...</div>
-            </div>
-            <button id="undoButton" onclick="requestUndoOnline()">♻️ 悔棋</button>
+<div class="game-container">
+    <div class="board-wrapper">
+        <canvas id="gobangCanvas" width="600" height="600" style="width:100%; height:auto; max-width:600px; aspect-ratio:1/1"></canvas>
+    </div>
+    <div class="info-panel">
+        <div class="turn-area" id="turnArea">
+            <div class="piece-badge black" id="badgePiece"></div>
+            <span class="turn-text" id="turnText">黑棋落子</span>
         </div>
-        
-        <div id="shareCard" style="display: none;">
-            <div class="share-area">
-                <input type="text" id="inviteLinkInput" readonly>
-                <button onclick="copyInviteLink()">复制链接</button>
-            </div>
-            <div style="font-size: 12px; text-align: center; color: #4b3a26;">👆 把链接发给朋友，对方打开即自动连接</div>
-        </div>
-        
-        <div id="connectingHint" style="text-align: center; margin-top: 12px; color: #2c4324; font-weight: bold;">
-            ⚡ 初始化房间中...
+        <div class="btn-group">
+            <button class="btn" id="undoBtn">↩️ 悔棋</button>
+            <button class="btn btn-reset" id="resetBtn">🔄 新一局</button>
         </div>
     </div>
+    <div id="winnerMsg" style="text-align: center; margin-top: 12px; min-height: 44px;"></div>
 </div>
 
 <script>
-    // ------------------- 五子棋核心逻辑 -------------------
-    const canvas = document.getElementById('boardCanvas');
-    const ctx = canvas.getContext('2d');
-    const SIZE = 15;          // 15x15 棋盘
-    const CELL = 34;          // 510/15 = 34px
-    const MARGIN = 0;         // 直接0偏移 (510/15完美对齐)
-    
-    let boardData = Array(SIZE).fill().map(() => Array(SIZE).fill(0));   // 0空 1黑 2白
-    let moveHistory = [];      // 存储 {x, y, color}
-    let currentTurn = 1;       // 1: 黑棋(先手)  2: 白棋
-    let myColor = 0;           // 0未分配, 1黑, 2白
-    let gameActive = true;
-    let gameOverFlag = false;
-    let winner = 0;
-    
-    let peer = null;
-    let connection = null;      // 点对点连接对象
-    let roomId = null;          // 自己的peer id
-    let isHost = false;         // 是否是房主（黑棋先手）
-    
-    // 辅助函数: 更新界面UI
-    function updateUI() {
-        const statusDiv = document.getElementById('gameStatusText');
-        const badge = document.getElementById('badgePiece');
+    (function(){
+        // ----- 五子棋核心配置 -----
+        const boardSize = 15;       // 15x15 标准棋盘
+        let board = Array(boardSize).fill().map(() => Array(boardSize).fill(null)); // 'black', 'white' 或 null
+        let currentPlayer = 'black';   // 黑棋先下
+        let gameOver = false;
+        let winner = null;              // 'black', 'white'
         
-        if (gameOverFlag && winner !== 0) {
-            if (winner === myColor) {
-                statusDiv.innerHTML = '🎉 你赢了！ 🎉';
+        // 悔棋栈: 存储每一步 { row, col, player }
+        let historyStack = [];
+        
+        // Canvas 引用及绘图参数
+        const canvas = document.getElementById('gobangCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 棋盘绘制参数 (动态计算)
+        let cellSize = 0;       // 格子边长
+        let offsetX = 0;
+        let offsetY = 0;
+        let radius = 0;         // 棋子半径
+        
+        // DOM 元素
+        const turnTextSpan = document.getElementById('turnText');
+        const badgePieceDiv = document.getElementById('badgePiece');
+        const winnerMsgDiv = document.getElementById('winnerMsg');
+        const undoBtn = document.getElementById('undoBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        // ---------- 辅助函数 ----------
+        function updateUI() {
+            // 更新棋子徽章样式
+            if (!gameOver) {
+                if (currentPlayer === 'black') {
+                    badgePieceDiv.className = 'piece-badge black';
+                    turnTextSpan.innerText = '黑棋落子';
+                } else {
+                    badgePieceDiv.className = 'piece-badge white';
+                    turnTextSpan.innerText = '白棋落子';
+                }
             } else {
-                statusDiv.innerHTML = '😭 对方赢了.. 再来一局？';
-            }
-            badge.className = winner === 1 ? 'piece black' : 'piece white';
-            return;
-        }
-        
-        if (!gameActive) {
-            statusDiv.innerHTML = '⏳ 等待对手连接...';
-            return;
-        }
-        
-        if (currentTurn === myColor) {
-            statusDiv.innerHTML = '✨ 轮到你落子 ✨';
-        } else {
-            statusDiv.innerHTML = '⏳ 等待对方落子...';
-        }
-        
-        if (currentTurn === 1) {
-            badge.className = 'piece black';
-        } else {
-            badge.className = 'piece white';
-        }
-    }
-    
-    // 绘制整个棋盘 & 棋子
-    function drawFullBoard() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // 画网格
-        ctx.beginPath();
-        ctx.strokeStyle = '#2c2b26';
-        ctx.lineWidth = 1.2;
-        for (let i = 0; i < SIZE; i++) {
-            ctx.moveTo(i * CELL, 0);
-            ctx.lineTo(i * CELL, canvas.height);
-            ctx.moveTo(0, i * CELL);
-            ctx.lineTo(canvas.width, i * CELL);
-            ctx.stroke();
-        }
-        // 画星位 (天元/小目)
-        const stars = [[7,7], [3,3], [11,3], [3,11], [11,11]];
-        ctx.fillStyle = '#bf8f4c';
-        stars.forEach(([x,y]) => {
-            ctx.beginPath();
-            ctx.arc(x * CELL, y * CELL, 4, 0, 2*Math.PI);
-            ctx.fillStyle = '#ad7a3d';
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(x * CELL, y * CELL, 2.2, 0, 2*Math.PI);
-            ctx.fillStyle = '#e9b56e';
-            ctx.fill();
-        });
-        
-        // 画所有棋子
-        for (let i = 0; i < SIZE; i++) {
-            for (let j = 0; j < SIZE; j++) {
-                if (boardData[i][j] !== 0) {
-                    drawPieceAt(i, j, boardData[i][j]);
+                if (winner === 'black') {
+                    badgePieceDiv.className = 'piece-badge black';
+                    turnTextSpan.innerText = '🏆 黑方胜利！';
+                } else if (winner === 'white') {
+                    badgePieceDiv.className = 'piece-badge white';
+                    turnTextSpan.innerText = '🏆 白方胜利！';
+                } else {
+                    // 平局理论上不会出现，但留一手
+                    turnTextSpan.innerText = '终局';
                 }
             }
+            
+            // 胜利信息区展示
+            if (gameOver && winner) {
+                const winnerName = winner === 'black' ? '黑方胜利！🎉' : '白方胜利！🎉';
+                winnerMsgDiv.innerHTML = `<span class="winner-message">✨ ${winnerName} ✨</span>`;
+            } else if (gameOver && !winner) {
+                winnerMsgDiv.innerHTML = `<span class="winner-message">🤝 平局</span>`;
+            } else {
+                winnerMsgDiv.innerHTML = '';
+            }
         }
-        // 画最后一步标记 (红圈)
-        if (moveHistory.length > 0) {
-            const last = moveHistory[moveHistory.length-1];
+        
+        // 绘制棋盘 (完全重绘)
+        function drawBoard() {
+            if (!canvas || !ctx) return;
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            
+            // 背景色
+            ctx.fillStyle = '#f7f0d9';
+            ctx.fillRect(0, 0, w, h);
+            
+            // 计算网格参数 (留出内边距)
+            const padding = w * 0.05;    // 5%边距
+            const available = w - padding * 2;
+            cellSize = available / (boardSize - 1);
+            radius = Math.min(cellSize * 0.42, w * 0.032);
+            offsetX = padding;
+            offsetY = padding;
+            
+            // 画网格线
             ctx.beginPath();
-            ctx.arc(last.x * CELL, last.y * CELL, 12, 0, 2*Math.PI);
-            ctx.strokeStyle = '#e34234';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-    }
-    
-    function drawPieceAt(col, row, colorVal) {
-        const cx = col * CELL;
-        const cy = row * CELL;
-        ctx.beginPath();
-        ctx.arc(cx, cy, CELL/2 - 2, 0, 2*Math.PI);
-        const grad = ctx.createRadialGradient(cx-4, cy-4, 3, cx, cy, CELL/2);
-        if (colorVal === 1) {
-            grad.addColorStop(0, '#4a4a5a');
-            grad.addColorStop(1, '#030303');
-        } else {
-            grad.addColorStop(0, '#fefefe');
-            grad.addColorStop(1, '#b5b5c0');
-        }
-        ctx.fillStyle = grad;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
-    
-    // 胜负判定
-    function checkWinAt(x, y, color) {
-        if (boardData[x][y] !== color) return false;
-        const dirs = [[1,0],[0,1],[1,1],[1,-1]];
-        for (let [dx, dy] of dirs) {
-            let count = 1;
-            for (let step = 1; step <= 5; step++) {
-                const nx = x + dx*step, ny = y + dy*step;
-                if (nx>=0 && nx<SIZE && ny>=0 && ny<SIZE && boardData[nx][ny] === color) count++;
-                else break;
+            ctx.strokeStyle = '#5f4c2b';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < boardSize; i++) {
+                const x = offsetX + i * cellSize;
+                const yStart = offsetY;
+                const yEnd = offsetY + (boardSize-1) * cellSize;
+                ctx.beginPath();
+                ctx.moveTo(x, yStart);
+                ctx.lineTo(x, yEnd);
+                ctx.stroke();
+                
+                const y = offsetY + i * cellSize;
+                const xStart = offsetX;
+                const xEnd = offsetX + (boardSize-1) * cellSize;
+                ctx.beginPath();
+                ctx.moveTo(xStart, y);
+                ctx.lineTo(xEnd, y);
+                ctx.stroke();
             }
-            for (let step = 1; step <= 5; step++) {
-                const nx = x - dx*step, ny = y - dy*step;
-                if (nx>=0 && nx<SIZE && ny>=0 && ny<SIZE && boardData[nx][ny] === color) count++;
-                else break;
+            
+            // 画星位 (天元/小目 五子棋常见星位)
+            const starPoints = [
+                [3,3], [11,3], [7,7], [3,11], [11,11]  // 15x15 标准星位
+            ];
+            ctx.fillStyle = '#c97e3a';
+            for (let [row, col] of starPoints) {
+                const x = offsetX + col * cellSize;
+                const y = offsetY + row * cellSize;
+                ctx.beginPath();
+                ctx.arc(x, y, radius * 0.65, 0, 2 * Math.PI);
+                ctx.fillStyle = '#b35f1a';
+                ctx.fill();
+                ctx.fillStyle = '#e09d42';
+                ctx.beginPath();
+                ctx.arc(x, y, radius * 0.4, 0, 2 * Math.PI);
+                ctx.fill();
             }
-            if (count >= 5) return true;
+            
+            // 绘制所有棋子
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const val = board[row][col];
+                    if (!val) continue;
+                    const cx = offsetX + col * cellSize;
+                    const cy = offsetY + row * cellSize;
+                    
+                    // 阴影效果
+                    ctx.shadowBlur = 0;
+                    const grad = ctx.createRadialGradient(cx-3, cy-3, radius*0.2, cx, cy, radius*0.8);
+                    if (val === 'black') {
+                        grad.addColorStop(0, '#2b2b3a');
+                        grad.addColorStop(1, '#111111');
+                        ctx.fillStyle = grad;
+                    } else {
+                        grad.addColorStop(0, '#fefefe');
+                        grad.addColorStop(1, '#e0e0f0');
+                        ctx.fillStyle = grad;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = '#5a4a32';
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                    // 高光
+                    ctx.beginPath();
+                    ctx.arc(cx-2, cy-2, radius*0.2, 0, 2*Math.PI);
+                    ctx.fillStyle = val === 'black' ? '#aaa' : '#ffffffc0';
+                    ctx.fill();
+                }
+            }
+            ctx.shadowBlur = 0;
         }
-        return false;
-    }
-    
-    // 执行落子
-    function placePiece(x, y, color, fromRemote = false) {
-        if (!gameActive || gameOverFlag) return false;
-        if (boardData[x][y] !== 0) return false;
-        if (!fromRemote && currentTurn !== myColor) return false;
-        if (color !== currentTurn) return false;
         
-        boardData[x][y] = color;
-        moveHistory.push({x, y, color});
-        drawFullBoard();
+        // 检查五子连珠 (基于最后一次落子)
+        function checkWin(row, col, player) {
+            // 方向向量: 水平, 垂直, 主对角线, 次对角线
+            const dirs = [[0,1], [1,0], [1,1], [1,-1]];
+            for (let [dx, dy] of dirs) {
+                let count = 1;
+                // 正方向延伸
+                for (let step = 1; step <= 4; step++) {
+                    const newRow = row + dx * step;
+                    const newCol = col + dy * step;
+                    if (newRow < 0 || newRow >= boardSize || newCol < 0 || newCol >= boardSize) break;
+                    if (board[newRow][newCol] === player) count++;
+                    else break;
+                }
+                // 反方向延伸
+                for (let step = 1; step <= 4; step++) {
+                    const newRow = row - dx * step;
+                    const newCol = col - dy * step;
+                    if (newRow < 0 || newRow >= boardSize || newCol < 0 || newCol >= boardSize) break;
+                    if (board[newRow][newCol] === player) count++;
+                    else break;
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
         
-        if (checkWinAt(x, y, color)) {
-            gameOverFlag = true;
-            winner = color;
-            gameActive = false;
-            updateUI();
-            drawFullBoard();
-            // 通知对方胜利 (简单消息)
-            if (connection && !fromRemote) {
-                connection.send({ type: 'gameover', winner: color });
+        // 检查是否平局 (棋盘满了)
+        function isDraw() {
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    if (board[i][j] === null) return false;
+                }
             }
             return true;
         }
         
-        // 切换回合
-        currentTurn = (currentTurn === 1) ? 2 : 1;
-        updateUI();
-        
-        // 如果不是远程触发的落子，同步给对方
-        if (!fromRemote && connection) {
-            connection.send({ type: 'move', x, y, color });
-        }
-        return true;
-    }
-    
-    // 悔棋逻辑 (本地 + 远端)
-    function performUndo() {
-        if (!gameActive || gameOverFlag) return false;
-        if (moveHistory.length === 0) return false;
-        // 只有轮到自己的时候或者刚开局双方都允许？规则：只能撤销自己的最后一步? 简化：双方都可以点，撤销最后一步并将回合归为撤销的那一方
-        // 为了公平: 只有当前回合玩家可以发起悔棋，且撤销对方最后一步不太合理，这里实现撤销自己刚下的?? 但是在线对战简化为撤销最后一步，并将回合归还给落子者
-        const last = moveHistory.pop();
-        boardData[last.x][last.y] = 0;
-        currentTurn = last.color;   // 归还回合给撤销前落子的颜色
-        gameOverFlag = false;
-        gameActive = true;
-        winner = 0;
-        drawFullBoard();
-        updateUI();
-        // 通过网络通知对方也悔棋
-        if (connection) {
-            connection.send({ type: 'undo_sync' });
-        }
-        return true;
-    }
-    
-    // 收到远程悔棋命令同步
-    function syncUndoFromRemote() {
-        if (moveHistory.length === 0) return;
-        const last = moveHistory.pop();
-        boardData[last.x][last.y] = 0;
-        currentTurn = last.color;
-        gameOverFlag = false;
-        gameActive = true;
-        winner = 0;
-        drawFullBoard();
-        updateUI();
-    }
-    
-    // 远程游戏结束同步
-    function syncGameover(winnerColor) {
-        gameOverFlag = true;
-        winner = winnerColor;
-        gameActive = false;
-        updateUI();
-        drawFullBoard();
-    }
-    
-    // ---------- 网络部分 (PeerJS 稳定加强版) ----------
-    function initPeerAndStart() {
-        // 使用更强的ICE服务器配置（提升国内连通率）
-        peer = new Peer({
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun.qq.com:3478' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    // 免费TURN备用 (部分网络需要，但大多stun足够)
-                    { urls: 'turn:freeturn.net:3478', username: 'free', credential: 'free' }
-                ]
-            },
-            debug: 2
-        });
-        
-        peer.on('open', (id) => {
-            roomId = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            const remoteId = urlParams.get('p2p');
+        // 执行落子 (内部逻辑, 不包含UI更新外的额外调用)
+        function placePiece(row, col, player) {
+            if (gameOver) return false;
+            if (row < 0 || row >= boardSize || col < 0 || col >= boardSize) return false;
+            if (board[row][col] !== null) return false;
+            if (player !== currentPlayer) return false;
             
-            if (remoteId) {
-                // 挑战者模式 (后手执白)
-                isHost = false;
-                myColor = 2;      // 白棋
-                document.getElementById('connectingHint').innerHTML = '🔗 正在连接好友 ...';
-                connection = peer.connect(remoteId);
-                
-                connection.on('open', () => {
-                    document.getElementById('connectingHint').innerHTML = '✅ 对战连接成功！你是白棋 (后手)';
-                    gameActive = true;
-                    updateUI();
-                    drawFullBoard();
-                    // 通知主机我方已就绪
-                    connection.send({ type: 'ready' });
-                });
-                
-                connection.on('data', (data) => {
-                    handleRemoteMessage(data);
-                });
-                
-                connection.on('error', (err) => {
-                    console.error(err);
-                    document.getElementById('connectingHint').innerHTML = '❌ 连接失败，请刷新重试或检查网络';
-                });
-                
-            } else {
-                // 主机模式 (黑棋先手)
-                isHost = true;
-                myColor = 1;
-                gameActive = false;   // 等待朋友加入
+            // 记录历史 (用于悔棋)
+            historyStack.push({ row, col, player });
+            
+            // 落子
+            board[row][col] = player;
+            
+            // 胜利判定
+            const win = checkWin(row, col, player);
+            if (win) {
+                gameOver = true;
+                winner = player;
                 updateUI();
-                drawFullBoard();
-                const inviteLink = window.location.href.split('?')[0] + '?p2p=' + id;
-                document.getElementById('inviteLinkInput').value = inviteLink;
-                document.getElementById('shareCard').style.display = 'block';
-                document.getElementById('connectingHint').innerHTML = '🏠 房间已创建，复制链接发给好友';
-                
-                peer.on('connection', (incomingConn) => {
-                    if (connection) return; // 只接受一个对手
-                    connection = incomingConn;
-                    connection.on('data', handleRemoteMessage);
-                    connection.on('open', () => {
-                        document.getElementById('shareCard').style.display = 'none';
-                        document.getElementById('connectingHint').innerHTML = '🎉 对手已加入！黑棋先走';
-                        gameActive = true;
-                        updateUI();
-                        drawFullBoard();
-                    });
-                });
+                drawBoard();
+                return true;
             }
+            
+            // 平局判定
+            if (isDraw()) {
+                gameOver = true;
+                winner = null;
+                updateUI();
+                drawBoard();
+                return true;
+            }
+            
+            // 切换玩家
+            currentPlayer = (currentPlayer === 'black') ? 'white' : 'black';
+            updateUI();
+            drawBoard();
+            return true;
+        }
+        
+        // 悔棋功能 (撤销最后一步)
+        function undoLastMove() {
+            if (gameOver) {
+                // 如果游戏已结束，不能悔棋，提示重置
+                return false;
+            }
+            if (historyStack.length === 0) return false;
+            
+            // 取出最后一步
+            const last = historyStack.pop();
+            const { row, col, player } = last;
+            // 清除棋盘上棋子
+            board[row][col] = null;
+            
+            // 将当前玩家设置为被撤销的那一方 (刚刚谁下的, 现在该他重新下)
+            currentPlayer = player;
+            
+            // 如果撤销后游戏结束标志需要清除 (因为上一步可能胜利)
+            if (gameOver) {
+                gameOver = false;
+                winner = null;
+            }
+            
+            // 可选: 二次悔棋? 这里只支持单步悔棋，但玩家可以连续点悔棋逐一撤销
+            // 重绘棋盘并更新界面
+            updateUI();
+            drawBoard();
+            return true;
+        }
+        
+        // 重置游戏全部状态
+        function resetGame() {
+            // 清空棋盘
+            board = Array(boardSize).fill().map(() => Array(boardSize).fill(null));
+            currentPlayer = 'black';
+            gameOver = false;
+            winner = null;
+            historyStack = [];
+            updateUI();
+            drawBoard();
+        }
+        
+        // ---------- 鼠标/触摸事件：将屏幕坐标转换为棋盘索引 ----------
+        function getBoardIndexFromClick(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;     // canvas实际像素宽 / CSS显示宽
+            const scaleY = canvas.height / rect.height;
+            
+            // 相对于 canvas 画布实际像素坐标
+            const canvasX = (clientX - rect.left) * scaleX;
+            const canvasY = (clientY - rect.top) * scaleY;
+            
+            if (canvasX < 0 || canvasY < 0 || canvasX > canvas.width || canvasY > canvas.height) return null;
+            
+            // 计算离哪个交叉点最近
+            let minDist = cellSize * 0.4;
+            let targetRow = -1, targetCol = -1;
+            
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const cx = offsetX + col * cellSize;
+                    const cy = offsetY + row * cellSize;
+                    const dx = cx - canvasX;
+                    const dy = cy - canvasY;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        targetRow = row;
+                        targetCol = col;
+                    }
+                }
+            }
+            if (targetRow !== -1 && targetCol !== -1 && minDist <= cellSize * 0.4) {
+                return { row: targetRow, col: targetCol };
+            }
+            return null;
+        }
+        
+        function handleCanvasClick(e) {
+            if (gameOver) return;
+            let clientX, clientY;
+            if (e.touches) {
+                // 触摸事件
+                e.preventDefault();
+                const touch = e.touches[0];
+                clientX = touch.clientX;
+                clientY = touch.clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const pos = getBoardIndexFromClick(clientX, clientY);
+            if (pos && !gameOver && board[pos.row][pos.col] === null) {
+                placePiece(pos.row, pos.col, currentPlayer);
+            }
+        }
+        
+        // 绑定事件 (同时支持鼠标和触摸)
+        function bindEvents() {
+            canvas.addEventListener('mousedown', handleCanvasClick);
+            canvas.addEventListener('touchstart', handleCanvasClick, { passive: false });
+            // 防止移动端长按菜单
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+        
+        // 窗口自适应重绘 (当显示尺寸变化时, 保证棋盘绘制正确)
+        function handleResize() {
+            // 重新计算canvas内部尺寸比例 (但是canvas宽高属性固定600px, 无需改变, 只需重绘)
+            drawBoard();
+        }
+        
+        // 初始化棋盘大小适应高分辨率
+        function initCanvas() {
+            // 设置canvas实际像素尺寸 600x600 (高清)
+            canvas.width = 600;
+            canvas.height = 600;
+            drawBoard();
+        }
+        
+        // 监听resize重新绘制，保证坐标系重新计算偏移
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                if (!gameOver) drawBoard();
+                else drawBoard();
+            }, 50);
         });
         
-        peer.on('error', (err) => {
-            console.log("Peer error:", err);
-            document.getElementById('connectingHint').innerHTML = '⚠️ 网络错误，请刷新页面重试。如果持续失败，可尝试使用热点网络。';
+        // 重置按钮逻辑
+        resetBtn.addEventListener('click', () => {
+            resetGame();
         });
-    }
-    
-    // 处理远程消息
-    function handleRemoteMessage(msg) {
-        if (msg.type === 'move') {
-            placePiece(msg.x, msg.y, msg.color, true);
-        } else if (msg.type === 'undo_sync') {
-            syncUndoFromRemote();
-        } else if (msg.type === 'gameover') {
-            syncGameover(msg.winner);
-        } else if (msg.type === 'ready') {
-            // 对端准备好，主机无额外动作
-        }
-    }
-    
-    // 对外接口
-    window.requestUndoOnline = function() {
-        if (!gameActive || gameOverFlag) {
-            alert("对局已结束，无法悔棋");
-            return;
-        }
-        if (currentTurn !== myColor) {
-            alert("请等待对方落子后再悔棋");
-            return;
-        }
-        performUndo();
-    };
-    
-    window.copyInviteLink = function() {
-        const input = document.getElementById('inviteLinkInput');
-        input.select();
-        input.setSelectionRange(0, 99999);
-        document.execCommand('copy');
-        alert("链接已复制 📋 快发给朋友一起玩吧");
-    };
-    
-    // 棋盘点击事件
-    canvas.addEventListener('click', (e) => {
-        if (!gameActive || gameOverFlag) return;
-        if (myColor === 0) {
-            alert("等待连接建立...");
-            return;
-        }
-        if (currentTurn !== myColor) {
-            // 不是我的回合
-            return;
-        }
         
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const mouseX = (e.clientX - rect.left) * scaleX;
-        const mouseY = (e.clientY - rect.top) * scaleY;
-        
-        const gridX = Math.round(mouseX / CELL);
-        const gridY = Math.round(mouseY / CELL);
-        if (gridX >= 0 && gridX < SIZE && gridY >= 0 && gridY < SIZE) {
-            if (boardData[gridX][gridY] === 0) {
-                placePiece(gridX, gridY, myColor, false);
+        undoBtn.addEventListener('click', () => {
+            if (gameOver) {
+                // 如果游戏已结束，仍然允许悔棋？为了体验友好，重置状态后允许？不，游戏结束重置更合理，提示用户按新一局。
+                // 但为了符合直觉，如果游戏结束，悔棋无效，可以提示或者直接忽略
+                if (winner) {
+                    // 小小颤动提示不做强制alert，保持干净
+                    winnerMsgDiv.innerHTML = `<span class="winner-message">⚠️ 游戏已结束，请按「新一局」</span>`;
+                    setTimeout(() => {
+                        if(gameOver && winner) winnerMsgDiv.innerHTML = `<span class="winner-message">✨ ${winner === 'black' ? '黑方胜利！🎉' : '白方胜利！🎉'} ✨</span>`;
+                        else if(!gameOver) winnerMsgDiv.innerHTML = '';
+                    }, 1000);
+                }
+                return;
             }
+            undoLastMove();
+        });
+        
+        // 辅助初始化
+        function init() {
+            initCanvas();
+            bindEvents();
+            resetGame();   // 清空状态初始绘制
         }
-    });
-    
-    // 初始渲染
-    drawFullBoard();
-    initPeerAndStart();
+        
+        init();
+    })();
 </script>
 </body>
 </html>
